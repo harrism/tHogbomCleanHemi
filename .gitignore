@@ -1,6 +1,10 @@
 # Application binary
 tHogbomCleanHemi
 
+# Output data
+model.img
+residual.img
+
 # Compiled Object files
 *.slo
 *.lo
