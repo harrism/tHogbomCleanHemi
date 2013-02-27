@@ -33,11 +33,59 @@ Then run
 You can also change the value of `CXX` to `icc` to use the Intel compiler, if you have it installed.
 
 Run
--------
+---
 
 Make sure the dirty.img and psf.img files are in the same location as the executable, and then run it.
     
     > tHogbomCleanHemi
+
+Example Results
+---------------
+
+Running CUDA version on a Tesla K20X GPU:
+
+    [harrism@machine tHogbomCleanHemi]$ ./tHogbomCleanHemi
+    Reading dirty image and psf image
+    Iterations = 1000
+    Image dimensions = 4096x4096
+    +++++ Forward processing (CPU Golden) +++++
+    Found peak of PSF: Maximum = 1 at location 2048,2048
+        Time 34.71 (s)
+        Time per cycle 34.71 (ms)
+        Cleaning rate  28.8101 (iterations per second)
+    Done
+    +++++ Forward processing (CUDA) +++++
+        Using CUDA Device 0: Tesla K20Xm( 14 SMs)
+    Found peak of PSF: Maximum = 1 at location 2048,2048
+        Time 1.19 (s)
+        Time per cycle 1.19 (ms)
+        Cleaning rate  840.336 (iterations per second)
+    Done
+    Verifying model...Pass
+    Verifying residual...Pass
+
+Running OpenMP version on dual Xeon (Sandy Bridge) CPUs:
+
+    [harrism@machine tHogbomCleanHemi]$ ./tHogbomCleanHemi
+    Reading dirty image and psf image
+    Iterations = 100
+    Image dimensions = 4096x4096
+    +++++ Forward processing (CPU Golden) +++++
+    Found peak of PSF: Maximum = 1 at location 2048,2048
+        Time 3.25 (s)
+        Time per cycle 32.5 (ms)
+        Cleaning rate  30.7692 (iterations per second)
+    Done
+    +++++ Forward processing (OpenMP) +++++
+        Using 12 OpenMP threads
+    Found peak of PSF: Maximum = 1 at location 2048,2048
+	    Time 0.49 (s)
+	    Time per cycle 4.9 (ms)
+	    Cleaning rate  204.082 (iterations per second)
+	Done
+	Verifying model...Pass
+	Verifying residual...Pass
+
 
 tHogbomClean License
 --------------------
