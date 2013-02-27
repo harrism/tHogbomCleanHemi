@@ -24,7 +24,7 @@
 # $ make
 #
 
-CXX = g++
+CXX = icc
 CFLAGS = -g -O3 -fstrict-aliasing -Wall -Wextra 
 
 HEMIDIR ?= ../hemi
@@ -34,10 +34,12 @@ HEMICC = nvcc -x cu
 
 ifeq ($(strip $(CXX)), icc)
 	CFLAGS += -openmp  
-	LINKFLAGS = -lirc -openmp
+	LINKFLAGS = -openmp
+	LIBS = 
 	HEMICFLAGS = -DHEMI_CUDA_DISABLE
 else
 	CFLAGS += -fopenmp
+	LIBS = -L/usr/local/cuda/lib64 -lcudart
 endif
 
 ifeq ($(strip $(HEMICC)), nvcc -x cu)
@@ -46,9 +48,8 @@ ifeq ($(strip $(HEMICC)), nvcc -x cu)
 	LIBS = -L/usr/local/cuda/lib64 -lcudart
 	LINKFLAGS += $(LIBS) 
 else 
-	HEMICFLAGS += -g -O3 -fopenmp 
+	HEMICFLAGS += $(CFLAGS)
 	LINK = $(CXX)
-	LIBS = -L/usr/local/cuda/lib64 -lcudart
 	LINKFLAGS += $(LIBS) -fopenmp
 endif
 
