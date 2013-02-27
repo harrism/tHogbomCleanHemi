@@ -27,6 +27,7 @@ By default, running `make` will build the code to run on a CUDA GPU. To build fo
     #HEMICC = $(CXX)
 
 Then run
+
     > make
 
 You can also change the value of `CXX` to `icc` to use the Intel compiler, if you have it installed.
@@ -35,6 +36,7 @@ Run
 -------
 
 Make sure the dirty.img and psf.img files are in the same location as the executable, and then run it.
+    
     > tHogbomCleanHemi
 
 tHogbomClean License
