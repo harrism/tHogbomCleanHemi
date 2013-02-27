@@ -24,13 +24,13 @@
 # $ make
 #
 
-CXX = icc 
+CXX = g++ 
 CFLAGS = -g -O3 -fstrict-aliasing -Wall -Wextra 
 
 HEMIDIR ?= ../hemi
 
-#HEMICC = nvcc -x cu
-HEMICC = $(CXX)
+HEMICC = nvcc -x cu
+#HEMICC = $(CXX)
 
 ifeq ($(strip $(CXX)), icc)
 	CFLAGS += -openmp  

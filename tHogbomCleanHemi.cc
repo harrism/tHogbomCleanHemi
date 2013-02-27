@@ -145,7 +145,7 @@ int main(int /*argc*/, char** /* argv*/)
     //
     // Run the OpenMP version of the code
     //
-    vector<float> ompResidual(dirty.size());
+    vector<float> ompResidual;
     vector<float> ompModel(dirty.size());
     zeroInit(ompModel);
     {

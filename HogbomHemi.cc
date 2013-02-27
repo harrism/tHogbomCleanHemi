@@ -49,7 +49,6 @@ HogbomHemi::HogbomHemi(std::vector<float>& residual,
                        std::vector<float>& psf)
 {
     reportDevice();
-    m_residual = new hemi::Array<float>(&residual[0], residual.size());
     m_psf = new hemi::Array<float>(&psf[0], psf.size());
     m_blockMaxVal = new hemi::Array<float>(m_findPeakNBlocks, true);
     m_blockMaxPos = new hemi::Array<int>(m_findPeakNBlocks, true);
@@ -57,7 +56,6 @@ HogbomHemi::HogbomHemi(std::vector<float>& residual,
 
 HogbomHemi::~HogbomHemi()
 {
-    delete m_residual;
     delete m_psf;
     delete m_blockMaxVal;
     delete m_blockMaxPos;
@@ -74,23 +72,23 @@ void HogbomHemi::deconvolve(const vector<float>& dirty,
                             vector<float>& model,
                             vector<float>& residual)
 {
-    // residual = dirty;
-    m_residual->copyFromHost(&dirty[0], dirty.size());
+    residual = dirty;
+    hemi::Array<float> d_residual(&residual[0], residual.size());
 
     // Find the peak of the PSF
     float psfPeakVal = 0.0;
     size_t psfPeakPos = 0;
     findPeak(m_psf->readOnlyPtr(), m_psf->size(), psfPeakVal, psfPeakPos);
-        //&psf[0], psf.size(), psfPeakVal, psfPeakPos);
+    
     cout << "Found peak of PSF: " << "Maximum = " << psfPeakVal
-        << " at location " << idxToPos(psfPeakPos, psfWidth).x << ","
-       << idxToPos(psfPeakPos, psfWidth).y << endl;
+         << " at location " << idxToPos(psfPeakPos, psfWidth).x << ","
+         << idxToPos(psfPeakPos, psfWidth).y << endl;
 
     for (unsigned int i = 0; i < g_niters; ++i) {
         // Find the peak in the residual image
         float absPeakVal = 0.0;
         size_t absPeakPos = 0;
-        findPeak(m_residual->readOnlyPtr(), m_residual->size(), absPeakVal, absPeakPos);
+        findPeak(d_residual.readOnlyPtr(), d_residual.size(), absPeakVal, absPeakPos);
 
         //cout << "Iteration: " << i + 1 << " - Maximum = " << absPeakVal
         //    << " at location " << idxToPos(absPeakPos, dirtyWidth).x << ","
@@ -106,12 +104,12 @@ void HogbomHemi::deconvolve(const vector<float>& dirty,
         model[absPeakPos] += absPeakVal * g_gain;
 
         // Subtract the PSF from the residual image
-        subtractPSF(m_psf->readOnlyPtr(), psfWidth, m_residual->ptr(), dirtyWidth, 
+        subtractPSF(m_psf->readOnlyPtr(), psfWidth, d_residual.ptr(), dirtyWidth, 
                     absPeakPos, psfPeakPos, absPeakVal, g_gain);
     }
 
     // force copy of residual back to host
-    m_residual->readOnlyHostPtr();
+    d_residual.readOnlyHostPtr();
 }
 
 #ifdef USE_THRUST
@@ -121,8 +119,6 @@ struct compare_abs
   bool operator()(float lhs, float rhs) { return abs(lhs) < abs(rhs); }
 };
 #endif
-
-inline int foo() { return 1; }
 
 HEMI_KERNEL(findPeakLoop)(float *maxVal, int *maxPos, const float* image, int size)
 {

@@ -84,7 +84,6 @@ class HogbomHemi {
 
         int m_findPeakNBlocks;
 
-        hemi::Array<float> *m_residual;
         hemi::Array<float> *m_psf;
         hemi::Array<float> *m_blockMaxVal;
         hemi::Array<int> *m_blockMaxPos;
