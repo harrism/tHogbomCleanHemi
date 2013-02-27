@@ -24,19 +24,21 @@
 # $ make
 #
 
-CXX = icc
+CXX = icc 
 CFLAGS = -g -O3 -fstrict-aliasing -Wall -Wextra 
 
 HEMIDIR ?= ../hemi
 
-HEMICC = nvcc -x cu
-#HEMICC = $(CXX)
+#HEMICC = nvcc -x cu
+HEMICC = $(CXX)
 
 ifeq ($(strip $(CXX)), icc)
 	CFLAGS += -openmp  
 	LINKFLAGS = -openmp
 	LIBS = 
+ifneq ($(strip $(HEMICC)), nvcc -x cu)
 	HEMICFLAGS = -DHEMI_CUDA_DISABLE
+endif
 else
 	CFLAGS += -fopenmp
 	LIBS = -L/usr/local/cuda/lib64 -lcudart
