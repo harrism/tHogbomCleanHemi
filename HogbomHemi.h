@@ -32,19 +32,19 @@
 #include "hemi/hemi.h"
 #include "hemi/array.h"
 
-#ifdef USE_THRUST
-#include <thrust/device_vector.h>
-#endif
+struct MaxCandidate
+{
+    float   value;
+    int     index;
+};
 
 class HogbomHemi {
     public:
-        HogbomHemi(std::vector<float>& residual,
-                   std::vector<float>& psf);
+        HogbomHemi(std::vector<float>& psf);
         ~HogbomHemi();
 
         void deconvolve(const std::vector<float>& dirty,
                         const size_t dirtyWidth,
-                        const std::vector<float>& psf,
                         const size_t psfWidth,
                         std::vector<float>& model,
                         std::vector<float>& residual);
@@ -73,7 +73,7 @@ class HogbomHemi {
 
     private: 
 
-        void findPeak(const float* image, size_t size, float& maxVal, size_t& maxPos);
+        void findPeak(const float* image, size_t size, MaxCandidate& peak);
 
         void subtractPSF(const float* psf, const size_t psfWidth,
                          float* residual, const size_t residualWidth,
@@ -85,8 +85,7 @@ class HogbomHemi {
         int m_findPeakNBlocks;
 
         hemi::Array<float> *m_psf;
-        hemi::Array<float> *m_blockMaxVal;
-        hemi::Array<int> *m_blockMaxPos;
+        hemi::Array<MaxCandidate> *m_blockMax;
 };
 
 
