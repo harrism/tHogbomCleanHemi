@@ -28,7 +28,9 @@ CXX = g++
 CFLAGS = -g -O3 -fstrict-aliasing -Wall -Wextra 
 
 HEMIDIR ?= ../hemi
+CUBDIR  ?= ../cub/cub
 
+# SWAP these lines to switch from CUDA to CPU compiler
 HEMICC = nvcc -x cu
 #HEMICC = $(CXX)
 
@@ -45,7 +47,7 @@ else
 endif
 
 ifeq ($(strip $(HEMICC)), nvcc -x cu)
-	HEMICFLAGS += -g -O3 -arch=sm_35 --ptxas-options=-v
+	HEMICFLAGS += -g -O3 -arch=sm_20 --ptxas-options=-v
 	LINK = $(CXX) 
 	LIBS = -L/usr/local/cuda/lib64 -lcudart
 	LINKFLAGS += $(LIBS) 
@@ -55,7 +57,7 @@ else
 	LINKFLAGS += $(LIBS) -fopenmp
 endif
 
-INCLUDE = -I./ -I/usr/local/cuda/include -I$(HEMIDIR)
+INCLUDE = -I./ -I/usr/local/cuda/include -I$(HEMIDIR) -I$(CUBDIR)
 
 EXENAME = tHogbomCleanHemi
 OBJS = $(EXENAME).o Stopwatch.o HogbomGolden.o HogbomHemi.o

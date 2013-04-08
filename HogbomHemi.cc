@@ -34,31 +34,24 @@
 // Local includes
 #include "Parameters.h"
 #ifdef HEMI_CUDA_COMPILER
-    #include "cudaBlockMax.h"
-    #ifdef USE_THRUST
-        #include <thrust/device_vector.h>
-        #include <thrust/extrema.h>
-    #endif
+    #include <cub.cuh>
 #else
     #include <omp.h>
 #endif
 
 using namespace std;
 
-HogbomHemi::HogbomHemi(std::vector<float>& residual,
-                       std::vector<float>& psf)
+HogbomHemi::HogbomHemi(std::vector<float>& psf)
 {
     reportDevice();
     m_psf = new hemi::Array<float>(&psf[0], psf.size());
-    m_blockMaxVal = new hemi::Array<float>(m_findPeakNBlocks, true);
-    m_blockMaxPos = new hemi::Array<int>(m_findPeakNBlocks, true);
+    m_blockMax = new hemi::Array<MaxCandidate>(m_findPeakNBlocks, true);
 }
 
 HogbomHemi::~HogbomHemi()
 {
     delete m_psf;
-    delete m_blockMaxVal;
-    delete m_blockMaxPos;
+    delete m_blockMax;
 
 #ifdef HEMI_CUDA_COMPILER
     checkCuda( cudaDeviceReset() );
@@ -67,7 +60,6 @@ HogbomHemi::~HogbomHemi()
 
 void HogbomHemi::deconvolve(const vector<float>& dirty,
                             const size_t dirtyWidth,    
-                            const vector<float>& psf,
                             const size_t psfWidth,
                             vector<float>& model,
                             vector<float>& residual)
@@ -76,113 +68,112 @@ void HogbomHemi::deconvolve(const vector<float>& dirty,
     hemi::Array<float> d_residual(&residual[0], residual.size());
 
     // Find the peak of the PSF
-    float psfPeakVal = 0.0;
-    size_t psfPeakPos = 0;
-    findPeak(m_psf->readOnlyPtr(), m_psf->size(), psfPeakVal, psfPeakPos);
+    MaxCandidate psfPeak = {0.0, 0};
+    findPeak(m_psf->readOnlyPtr(), m_psf->size(), psfPeak);
     
-    cout << "Found peak of PSF: " << "Maximum = " << psfPeakVal
-         << " at location " << idxToPos(psfPeakPos, psfWidth).x << ","
-         << idxToPos(psfPeakPos, psfWidth).y << endl;
+    cout << "Found peak of PSF: " << "Maximum = " << psfPeak.value
+         << " at location " << idxToPos(psfPeak.index, psfWidth).x << ","
+         << idxToPos(psfPeak.index, psfWidth).y << endl;
 
     for (unsigned int i = 0; i < g_niters; ++i) {
         // Find the peak in the residual image
-        float absPeakVal = 0.0;
-        size_t absPeakPos = 0;
-        findPeak(d_residual.readOnlyPtr(), d_residual.size(), absPeakVal, absPeakPos);
+        MaxCandidate absPeak = {0.0, 0};
+        findPeak(d_residual.readOnlyPtr(), d_residual.size(), absPeak);
 
-        //cout << "Iteration: " << i + 1 << " - Maximum = " << absPeakVal
-        //    << " at location " << idxToPos(absPeakPos, dirtyWidth).x << ","
-        //    << idxToPos(absPeakPos, dirtyWidth).y << endl;
+        //cout << "Iteration: " << i + 1 << " - Maximum = " << absPeak.value
+        //    << " at location " << idxToPos(absPeak.index, dirtyWidth).x << ","
+        //    << idxToPos(absPeak.index, dirtyWidth).y << endl;
 
         // Check if threshold has been reached
-        if (abs(absPeakVal) < g_threshold) {
+        if (abs(absPeak.value) < g_threshold) {
             cout << "Reached stopping threshold" << endl;
             break;
         }
 
         // Add to model
-        model[absPeakPos] += absPeakVal * g_gain;
+        model[absPeak.index] += absPeak.value * g_gain;
 
         // Subtract the PSF from the residual image
         subtractPSF(m_psf->readOnlyPtr(), psfWidth, d_residual.ptr(), dirtyWidth, 
-                    absPeakPos, psfPeakPos, absPeakVal, g_gain);
+                    absPeak.index, psfPeak.index, absPeak.value, g_gain);
     }
 
     // force copy of residual back to host
     d_residual.readOnlyHostPtr();
 }
 
-#ifdef USE_THRUST
-struct compare_abs
+HEMI_DEV_CALLABLE_INLINE
+int blockId()
 {
-  HEMI_DEV_CALLABLE_INLINE_MEMBER
-  bool operator()(float lhs, float rhs) { return abs(lhs) < abs(rhs); }
-};
-#endif
-
-HEMI_KERNEL(findPeakLoop)(float *maxVal, int *maxPos, const float* image, int size)
-{
-#ifndef HEMI_DEV_CODE
-    *maxVal = 0.0f;
-    *maxPos = 0;
-
-    #pragma omp parallel
-#endif
-    {
-        float threadAbsMaxVal = 0.0;
-        int threadAbsMaxPos = 0;
-        #pragma omp for schedule(static)
-        for (int i = hemiGetElementOffset(); i < size; i += hemiGetElementStride()) {
-            if (abs(image[i]) > abs(threadAbsMaxVal)) {
-                threadAbsMaxVal = image[i];
-                threadAbsMaxPos = i;
-            }
-        }
-
-#ifdef HEMI_DEV_CODE
-        blockMax<HogbomHemi::FindPeakBlockSize>(maxVal, maxPos, threadAbsMaxVal, threadAbsMaxPos);
+#ifdef HEMI_CUDA_COMPILER
+    return blockIdx.x;
 #else
-        // Avoid using the double-checked locking optimization here unless
-        // we can be certain that the load of a float is atomic
-        #pragma omp critical
-        if (abs(threadAbsMaxVal) > abs(*maxVal)) {
-            *maxVal = threadAbsMaxVal;
-            *maxPos = threadAbsMaxPos;
-        }
+    return omp_get_thread_num();
 #endif
+}
+
+// For CUB
+struct MaxOp
+{
+    HEMI_DEV_CALLABLE_INLINE_MEMBER
+    MaxCandidate operator()(const MaxCandidate &a, const MaxCandidate &b)
+    {
+        return (abs(b.value) > abs(a.value)) ? b : a;
+    }
+};
+
+HEMI_DEV_CALLABLE_INLINE
+void findPeakReduce(MaxCandidate *peak, MaxCandidate threadMax)
+{
+#ifdef HEMI_DEV_CODE
+    typedef cub::BlockReduce<MaxCandidate, HogbomHemi::FindPeakBlockSize> BlockMax;
+    __shared__ typename BlockMax::SmemStorage smem_storage;
+    MaxOp op;
+    threadMax = BlockMax::Reduce(smem_storage, threadMax, op);
+    if (threadIdx.x == 0)
+#endif
+    {           
+        peak[blockId()] = threadMax;
     }
 }
 
-void HogbomHemi::findPeak(const float* image, size_t size, float& maxVal, size_t& maxPos)
+HEMI_KERNEL(findPeakLoop)(MaxCandidate *peak, const float* image, int size)
 {
-#ifdef USE_THRUST
-    thrust::device_vector<float>::iterator base_iter = 
-        (thrust::device_vector<float>::iterator)thrust::device_pointer_cast((float*)image);
-    
-    compare_abs compare;
-    thrust::device_vector<float>::iterator iter = 
-        thrust::max_element(base_iter, base_iter + size, compare);
-    
-    maxPos = iter - base_iter;
-    maxVal = *iter;
-#else
-    HEMI_KERNEL_LAUNCH(findPeakLoop, m_findPeakNBlocks, FindPeakBlockSize, 0, 0,
-                       m_blockMaxVal->writeOnlyPtr(), m_blockMaxPos->writeOnlyPtr(),
-                       image, size);   
+    peak->value = 0.0f;
+    peak->index = 0;
 
-    const float *mv = m_blockMaxVal->readOnlyHostPtr();
-    const int *mp = m_blockMaxPos->readOnlyHostPtr();
-    maxVal= mv[0];
-    maxPos = mp[0];
-#ifdef HEMI_CUDA_COMPILER
-    for (int i = 1; i < m_findPeakNBlocks; ++i) {
-        if (abs(mv[i]) > abs(maxVal)) {
-            maxVal = mv[i];
-            maxPos = mp[i];
+    #pragma omp parallel
+    {
+        MaxCandidate threadMax = {0.0, 0};
+        
+        // parallel raking reduction (independent threads)
+        #pragma omp for schedule(static)
+        for (int i = hemiGetElementOffset(); i < size; i += hemiGetElementStride()) {
+            if (abs(image[i]) > abs(threadMax.value)) {
+                threadMax.value = image[i];
+                threadMax.index = i;
+            }
         }
+
+        findPeakReduce(peak, threadMax);
     }
-#endif
-#endif
+}
+
+void HogbomHemi::findPeak(const float* image, size_t size, MaxCandidate &peak)
+{
+    HEMI_KERNEL_LAUNCH(findPeakLoop, m_findPeakNBlocks, FindPeakBlockSize, 0, 0,
+                       m_blockMax->writeOnlyPtr(), image, size);   
+
+    const MaxCandidate *maximum = m_blockMax->readOnlyHostPtr();
+    
+    peak = maximum[0];
+
+    // serial final reduction
+    for (int i = 1; i < m_findPeakNBlocks; ++i) {
+        if (abs(maximum[i].value) > abs(peak.value))
+            peak = maximum[i];
+    }
+
 }
 
 HEMI_KERNEL(subtractPSFLoop)(const float* psf, const int psfWidth,
@@ -256,6 +247,6 @@ void HogbomHemi::reportDevice(void)
     std::cout << "+++++ Forward processing (OpenMP) +++++" << endl;
     std::cout << "    Using " << omp_get_max_threads() << " OpenMP threads" << endl;
 
-    m_findPeakNBlocks =  1;
+    m_findPeakNBlocks =  omp_get_max_threads();
 #endif
 }

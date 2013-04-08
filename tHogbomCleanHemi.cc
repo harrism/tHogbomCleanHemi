@@ -163,11 +163,11 @@ int main(int argc, char** argv)
     zeroInit(ompModel);
     {
         // Now we can do the timing for the parallel implementation
-        HogbomHemi hogbomHemi(ompResidual, psf);
+        HogbomHemi hogbomHemi(psf);
 
         Stopwatch sw;
         sw.start();
-        hogbomHemi.deconvolve(dirty, dim, psf, psfDim, ompModel, ompResidual);
+        hogbomHemi.deconvolve(dirty, dim, psfDim, ompModel, ompResidual);
         const double time = sw.stop();
 
         // Report on timings
