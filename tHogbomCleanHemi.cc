@@ -103,7 +103,7 @@ bool compare(const vector<float>& expected, const vector<float>& actual)
     return true;
 }
 
-int main(int /*argc*/, char** /* argv*/)
+int main(int argc, char** argv)
 {
     cout << "Reading dirty image and psf image" << endl;
     // Load dirty image and psf
@@ -112,38 +112,51 @@ int main(int /*argc*/, char** /* argv*/)
     vector<float> psf = readImage(g_psfFile);
     const size_t psfDim = checkSquare(psf);
 
+    bool computeGolden = true;
+    if (argc > 1 && !strstr(argv[0], "skipgolden"))
+        computeGolden = false;
+
     // Reports some numbers
     cout << "Iterations = " << g_niters << endl;
     cout << "Image dimensions = " << dim << "x" << dim << endl;
-    //
-    // Run the golden version of the code
-    //
+
     vector<float> goldenResidual;
     vector<float> goldenModel(dirty.size());
-    zeroInit(goldenModel);
+    if (computeGolden)
     {
-        // Now we can do the timing for the serial (Golden) CPU implementation
-        cout << "+++++ Forward processing (CPU Golden) +++++" << endl;
-        HogbomGolden golden;
+        //
+        // Run the golden (basic serial) version of the code
+        //
+        zeroInit(goldenModel);
+        {
+            // Now we can do the timing for the serial (Golden) CPU implementation
+            cout << "+++++ Forward processing (CPU Golden) +++++" << endl;
+            HogbomGolden golden;
 
-        Stopwatch sw;
-        sw.start();
-        golden.deconvolve(dirty, dim, psf, psfDim, goldenModel, goldenResidual);
-        const double time = sw.stop();
+            Stopwatch sw;
+            sw.start();
+            golden.deconvolve(dirty, dim, psf, psfDim, goldenModel, goldenResidual);
+            const double time = sw.stop();
 
-        // Report on timings
-        cout << "    Time " << time << " (s) " << endl;
-        cout << "    Time per cycle " << time / g_niters * 1000 << " (ms)" << endl;
-        cout << "    Cleaning rate  " << g_niters / time << " (iterations per second)" << endl;
-        cout << "Done" << endl;
+            // Report on timings
+            cout << "    Time " << time << " (s) " << endl;
+            cout << "    Time per cycle " << time / g_niters * 1000 << " (ms)" << endl;
+            cout << "    Cleaning rate  " << g_niters / time << " (iterations per second)" << endl;
+            cout << "Done" << endl;
+        }
+
+        // Write images out
+        writeImage("residual.img", goldenResidual);
+        writeImage("model.img", goldenModel);
+    }
+    else
+    {
+        goldenResidual = readImage("residual.img");
+        goldenModel = readImage("model.img");
     }
 
-    // Write images out
-    writeImage("residual.img", goldenResidual);
-    writeImage("model.img", goldenModel);
-
     //
-    // Run the OpenMP version of the code
+    // Run the Parallel version of the code
     //
     vector<float> ompResidual;
     vector<float> ompModel(dirty.size());
