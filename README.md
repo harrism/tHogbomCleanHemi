@@ -3,7 +3,7 @@ tHogbomCleanHemi
 
 ### Portable CUDA / OpenMP implementation of the Hogbom Clean Benchmark
 
-This is a port of a Hogbom image cleaning algorithm benchmark originally written by Ben Humphreys of CSIRO ATNF. The port uses Hemi (http://github.com/harrism/hemi) to provide both a fast parallel CUDA implementation for GPUs and an OpenMP parallel implementation for CPUs.
+This is a port of a [Hogbom image cleaning algorithm benchmark](https://github.com/ATNF/askap-benchmarks) originally written by Ben Humphreys of CSIRO ATNF. The port uses [Hemi](http://github.com/harrism/hemi) to provide both a fast parallel CUDA implementation for GPUs and an OpenMP parallel implementation for CPUs.
 
 Hemi enables most of the code to be used for both implementations.
 
@@ -12,12 +12,18 @@ The Hemi port was done by [Mark Harris](http://github.com/harrism).
 Prerequisites
 -------------
 
-You must clone the Hemi headers from github. Hemi is available at http://github.com/harrism/hemi. Then edit the Makefile and change the value of `HEMIDIR` to the relative path of your clone of hemi.
+tHogbomCleanHemi depends on Hemi and cub. Hemi is a simple library designed to make writing portable CUDA C/C++ code easy. In many cases, code written using Hemi can compile and run on either the CPU or GPU.
 
-To run on the GPU, you need a CUDA-capable GPU. More info about [CUDA](http://developer.nvidia.com/cuda-toolkit)
+[cub](https://github.com/NVlabs/cub) is a CUDA block-level library of parallel algorithms. tHogbomCleanHemi uses cub::BlockReduce to implement a fast image peak pixel finding step on the GPU. The 4-5 lines of code that call CUB are the only CUDA-specific code in tHogbomCleanHemi.
+
+You must clone the cub and Hemi libraries from github. Hemi is available at http://github.com/harrism/hemi. cub is available at https://github.com/NVlabs/cub.
+
+Edit the Makefile and change the value of `HEMIDIR` and `CUBDIR` to the relative path of your clones of hemi and cub, respectively.
+
+To run on the GPU, you need a CUDA-capable GPU. More info about [CUDA](http://developer.nvidia.com/cuda-toolkit).
 
 Compile
------------
+-------
 
 You should update the makefile to change the `-arch` flag to nvcc to specify the GPU architecture you are interested in. In the distribution it is set to `-arch=sm_20`
 
@@ -37,10 +43,18 @@ Run
 
 Make sure the dirty.img and psf.img files are in the same location as the executable, and then run it.
     
-    > tHogbomCleanHemi
+    > ./tHogbomCleanHemi
+
+You can skip the (slow) "golden" step which generates the baseline (correct) images for comparison, by passing the `-skipgolden` command line option. 
+
+    > ./tHogbomCleanHemi -skipgolden
+
+Make sure you run the app at least once before you do this, to generate and save the image files on disk. `-skipgolden` loads the files from disk.
 
 Example Results
 ---------------
+
+The following results use CUDA 5.0 and the Intel compiler (ICC) 13.0.1
 
 Running CUDA version on a Tesla K20X GPU:
 
@@ -68,23 +82,23 @@ Running OpenMP version on dual Xeon (Sandy Bridge) CPUs:
 
     [harrism@machine tHogbomCleanHemi]$ ./tHogbomCleanHemi
     Reading dirty image and psf image
-    Iterations = 100
+    Iterations = 1000
     Image dimensions = 4096x4096
     +++++ Forward processing (CPU Golden) +++++
     Found peak of PSF: Maximum = 1 at location 2048,2048
-        Time 3.25 (s)
-        Time per cycle 32.5 (ms)
-        Cleaning rate  30.7692 (iterations per second)
+        Time 36.17 (s)
+        Time per cycle 36.17 (ms)
+        Cleaning rate  27.6472 (iterations per second)
     Done
     +++++ Forward processing (OpenMP) +++++
         Using 12 OpenMP threads
     Found peak of PSF: Maximum = 1 at location 2048,2048
-	    Time 0.49 (s)
-	    Time per cycle 4.9 (ms)
-	    Cleaning rate  204.082 (iterations per second)
-	Done
-	Verifying model...Pass
-	Verifying residual...Pass
+        Time 6.18 (s)
+        Time per cycle 6.18 (ms)
+        Cleaning rate  161.812 (iterations per second)
+    Done
+    Verifying model...Pass
+    Verifying residual...Pass
 
 
 tHogbomClean License

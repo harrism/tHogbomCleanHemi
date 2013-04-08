@@ -47,7 +47,7 @@ else
 endif
 
 ifeq ($(strip $(HEMICC)), nvcc -x cu)
-	HEMICFLAGS += -g -O3 -arch=sm_35 --ptxas-options=-v
+	HEMICFLAGS += -g -O3 -arch=sm_20 --ptxas-options=-v
 	LINK = $(CXX) 
 	LIBS = -L/usr/local/cuda/lib64 -lcudart
 	LINKFLAGS += $(LIBS) 
