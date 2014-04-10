@@ -127,9 +127,9 @@ void findPeakReduce(MaxCandidate *peak, MaxCandidate threadMax)
 {
 #ifdef HEMI_DEV_CODE
     typedef cub::BlockReduce<MaxCandidate, HogbomHemi::FindPeakBlockSize> BlockMax;
-    __shared__ typename BlockMax::SmemStorage smem_storage;
+    __shared__ typename BlockMax::TempStorage temp_storage;
     MaxOp op;
-    threadMax = BlockMax::Reduce(smem_storage, threadMax, op);
+    threadMax = BlockMax(temp_storage).Reduce(threadMax, op);
     if (threadIdx.x == 0)
 #endif
     {           
