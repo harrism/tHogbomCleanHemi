@@ -139,9 +139,6 @@ void findPeakReduce(MaxCandidate *peak, MaxCandidate threadMax)
 
 HEMI_KERNEL(findPeakLoop)(MaxCandidate *peak, const float* image, int size)
 {
-    peak->value = 0.0f;
-    peak->index = 0;
-
     #pragma omp parallel
     {
         MaxCandidate threadMax = {0.0, 0};

@@ -158,7 +158,7 @@ int main(int argc, char** argv)
     //
     // Run the Parallel version of the code
     //
-    vector<float> ompResidual;
+    vector<float> ompResidual(dirty.size());
     vector<float> ompModel(dirty.size());
     zeroInit(ompModel);
     {
